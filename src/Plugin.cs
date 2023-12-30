@@ -146,19 +146,19 @@ namespace ImprovedCollectiblesTracker {
         // Replace original constructor with more efficient one, also with custom logic as well
         private void CollectiblesTracker_ctor(On.MoreSlugcats.CollectiblesTracker.orig_ctor orig, CollectiblesTracker s, Menu.Menu m, MenuObject owner, Vector2 pos, FContainer container, SlugcatStats.Name saveSlot) {
             try {
+                orig(s, m, owner, pos, container, saveSlot);
+                s.sprites
+                    .ToList()
+                    .ForEach(region => region.Value
+                        .ForEach(sprite => {
+                            container.RemoveChild(sprite);
+                        })
+                    );
+                s.sprites.Clear();
+
                 var menu = m as SleepAndDeathScreen;
                 var rainWorld = menu.manager.rainWorld;
                 CurrentSlugcat = saveSlot;
-
-                // init
-                s.menu = menu;
-                s.owner = owner;
-                s.subObjects = [];
-                s.nextSelectable = new MenuObject[4];
-                s.pos = pos;
-                s.lastPos = pos;
-                s.sprites = [];
-                s.collectionData = s.MineForSaveData(menu.manager, saveSlot) ?? new CollectiblesTracker.SaveGameData { currentRegion = "??", regionsVisited = [] };
 
                 var availableRegions = SlugcatStats
                     .getSlugcatStoryRegions(saveSlot)
@@ -250,10 +250,6 @@ namespace ImprovedCollectiblesTracker {
 
             } catch (Exception e) {
                 Logger.LogError($"Exception in CollectiblesTracker_ctor override {e}");
-                Logger.LogError($"running orig instead...");
-
-                orig(s, m, owner, pos, container, saveSlot);
-
             }
         }
     }
