@@ -1,0 +1,11 @@
+{
+	"id": "improvedcollectiblestracker",
+	"name": "ImprovedCollectiblesTracker",
+	"version": "1.0.0",
+	"authors": "aissurtievos",
+	"description": "Overhauls the collectibles tracker that shows after each cycle.",
+	"requirements": [],
+	"requirements_names": [],
+	"tags" : [],
+	"checksum_override_version": false
+}
