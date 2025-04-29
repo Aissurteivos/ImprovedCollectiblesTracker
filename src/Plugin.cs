@@ -17,41 +17,55 @@ using Menu;
 #pragma warning restore CS0618 // Type or member is obsolete
 
 namespace ImprovedCollectiblesTracker {
-    [BepInPlugin(AUTHOR + "." + MOD_ID, MOD_NAME, VERSION)]
-    internal class Plugin : BaseUnityPlugin {
-        public static new ManualLogSource Logger { get; private set; } = null!;
+    [BepInPlugin(Author + "." + ModID, ModName, Version)]
+    public class Plugin : BaseUnityPlugin {
+        private new static ManualLogSource Logger { get; set; } = null!;
 
-        public const string VERSION = "1.0.0";
-        public const string MOD_NAME = "ImprovedCollectiblesTracker";
-        public const string MOD_ID = "improvedcollectiblestracker";
-        public const string AUTHOR = "aissurtievos";
+        private const string Version = "1.2.0";
+        private const string ModName = "ImprovedCollectiblesTracker";
+        private const string ModID = "improvedcollectiblestracker";
+        private const string Author = "aissurtievos";
 
         public void OnEnable() {
             Logger = base.Logger;
             On.MoreSlugcats.CollectiblesTracker.ctor += CollectiblesTracker_ctor;
             On.MoreSlugcats.CollectiblesTracker.GrafUpdate += CollectiblesTracker_GrafUpdate;
+            On.MoreSlugcats.CollectiblesTracker.RemoveSprites += CollectiblesTracker_RemoveSprites;
+            //On.RainWorld.PostModsInit += InitReferences;
         }
 
-        public bool IsMouseWithin(Rect rect) {
+        // private static void InitReferences(On.RainWorld.orig_PostModsInit orig, RainWorld self) {
+       //     SandboxUnlockIcons = rainWorld.regionBlueTokens.Values
+       //         .SelectMany(tokenList => tokenList)
+       //         .Distinct()
+       //         .ToDictionary(token => token.value, MultiplayerUnlocks.SymbolDataForSandboxUnlock);
+       // }
+
+        private static bool IsMouseWithin(Rect rect) {
             return Futile.mousePosition.x > rect.x &&
                    Futile.mousePosition.y > rect.y &&
                    Futile.mousePosition.x < rect.x + rect.width &&
                    Futile.mousePosition.y < rect.y + rect.height;
         }
 
-        public static FLabel? ToolTipText = null;
-        public static RoundedRect? TooltipBoundingBox = null;
-        public static string LastTooltipValue = "";
-        public static int VisibilityCounter = 0;
+        private static FLabel? s_toolTipText = null;
+        private static RoundedRect? s_tooltipBoundingBox = null;
+        private static string s_lastTooltipValue = "";
+        private static int s_visibilityCounter = 0;
+        
+        //private static Dictionary<string, IconSymbol.IconSymbolData> SandboxUnlockIcons = [];
+        //private static Dictionary<FSprite, string> SpriteToUnlockID = [];
 
-        private void CollectiblesTracker_GrafUpdate(On.MoreSlugcats.CollectiblesTracker.orig_GrafUpdate orig, CollectiblesTracker s, float timeStacker) {
+        private static void CollectiblesTracker_GrafUpdate(On.MoreSlugcats.CollectiblesTracker.orig_GrafUpdate orig, CollectiblesTracker s, float timeStacker) {
             try {
                 orig(s, timeStacker);
 
-                // Base our rearrangement on the original position of the top right icon
-                var topRightNode = s.regionIcons.Last();
-                var startX = topRightNode.x + 26f;
-                var startY = topRightNode.y;
+                if (!RegionLabels.Any())
+                    return;
+                
+                var drawpos = s.DrawPos(timeStacker);
+                var startX = drawpos.x;
+                var startY = drawpos.y;
                 var minX = startX;
                 var minY = startY;
 
@@ -78,10 +92,11 @@ namespace ImprovedCollectiblesTracker {
                     var collectiblesWidth = startX + 4f - minX - 7f;
                     RegionsLeftText.x = startX - collectiblesWidth / 2;
                     RegionsLeftText.y = minY - 13f;
+                    RegionsLeftText.isVisible = true;
                 }
 
                 // These should never be null, but check anyway
-                if (ToolTipText == null || TooltipBoundingBox == null) { return; }
+                if (s_toolTipText == null || s_tooltipBoundingBox == null) { return; }
 
                 // Check if we are hovering over a label
                 var hoveredLabel = RegionLabels
@@ -94,49 +109,50 @@ namespace ImprovedCollectiblesTracker {
 
                 // If no label is being hovered over, instantly hide the tooltip and reset visibility
                 if (hoveredLabel == null) {
-                    if (VisibilityCounter == 0) { return; }
-                    VisibilityCounter = 0;
-                    LastTooltipValue = "";
-                    ToolTipText.isVisible = false;
-                    TooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.isVisible = false);
+                    if (s_visibilityCounter == 0) { return; }
+                    s_visibilityCounter = 0;
+                    s_lastTooltipValue = "";
+                    s_toolTipText.isVisible = false;
+                    s_tooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.isVisible = false);
                     return;
-                } else if (VisibilityCounter == 0) {
-                    ToolTipText.isVisible = true;
-                    TooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.isVisible = true);
+                }
+                if (s_visibilityCounter == 0) {
+                    s_toolTipText.isVisible = true;
+                    s_tooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.isVisible = true);
                 }
 
                 var fullRegionName = Region.GetRegionFullName(hoveredLabel.text.ToLowerInvariant(), CurrentSlugcat);
 
-                if (fullRegionName != LastTooltipValue) {
-                    ToolTipText.text = fullRegionName;
-                    LastTooltipValue = fullRegionName;
-                } else if (VisibilityCounter < 20) {
-                    VisibilityCounter += 1;
+                if (fullRegionName != s_lastTooltipValue) {
+                    s_toolTipText.text = fullRegionName;
+                    s_lastTooltipValue = fullRegionName;
+                } else if (s_visibilityCounter < 20) {
+                    s_visibilityCounter += 1;
                 }
 
-                var fullNameRect = ToolTipText.textRect;
+                var fullNameRect = s_toolTipText.textRect;
                 var hPadding = 12f;
                 var vPadding = 6f;
 
-                TooltipBoundingBox.pos.x = Mathf.Floor(Futile.mousePosition.x - fullNameRect.width - hPadding - 13f);
-                TooltipBoundingBox.pos.y = Mathf.Floor(Futile.mousePosition.y - fullNameRect.height / 2);
+                s_tooltipBoundingBox.pos.x = Mathf.Floor(Futile.mousePosition.x - fullNameRect.width - hPadding - 13f);
+                s_tooltipBoundingBox.pos.y = Mathf.Floor(Futile.mousePosition.y - fullNameRect.height / 2);
 
-                TooltipBoundingBox.size.x = fullNameRect.width + hPadding;
-                TooltipBoundingBox.size.y = fullNameRect.height + vPadding;
+                s_tooltipBoundingBox.size.x = fullNameRect.width + hPadding;
+                s_tooltipBoundingBox.size.y = fullNameRect.height + vPadding;
 
-                var boundingBoxDrawPos = TooltipBoundingBox.DrawPos(timeStacker);
+                var boundingBoxDrawPos = s_tooltipBoundingBox.DrawPos(timeStacker);
 
-                ToolTipText.x = boundingBoxDrawPos.x + fullNameRect.width / 2 + 0.01f + hPadding / 2f;
-                ToolTipText.y = boundingBoxDrawPos.y + fullNameRect.height / 2 + 0.01f + vPadding / 2f + 1f;
+                s_toolTipText.x = boundingBoxDrawPos.x + fullNameRect.width / 2 + 0.01f + hPadding / 2f;
+                s_toolTipText.y = boundingBoxDrawPos.y + fullNameRect.height / 2 + 0.01f + vPadding / 2f + 1f;
 
 
                 // elements should be invisible for the first 5 frames, and fade in gradually after that over 15 frames
                 // final opacity 75%
-                var elementAlpha = Max(0f, (VisibilityCounter - 5) * 0.05f);
+                var elementAlpha = Max(0f, (s_visibilityCounter - 5) * 0.05f);
 
-                ToolTipText.alpha = elementAlpha;
-                TooltipBoundingBox.fillAlpha = elementAlpha;
-                TooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.alpha = elementAlpha);
+                s_toolTipText.alpha = elementAlpha;
+                s_tooltipBoundingBox.fillAlpha = elementAlpha;
+                s_tooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.alpha = elementAlpha);
             } catch (Exception e) { Logger.LogError($"Exception in CollectiblesTracker_GrafUpdate {e}"); }
         }
 
@@ -144,19 +160,16 @@ namespace ImprovedCollectiblesTracker {
         public static FLabel? RegionsLeftText = null;
         public static SlugcatStats.Name CurrentSlugcat = new("White", register: true);
         // Replace original constructor with more efficient one, also with custom logic as well
-        private void CollectiblesTracker_ctor(On.MoreSlugcats.CollectiblesTracker.orig_ctor orig, CollectiblesTracker s, Menu.Menu m, MenuObject owner, Vector2 pos, FContainer container, SlugcatStats.Name saveSlot) {
+        private void CollectiblesTracker_ctor(On.MoreSlugcats.CollectiblesTracker.orig_ctor orig, CollectiblesTracker s, Menu.Menu menu, MenuObject owner, Vector2 pos, FContainer container, SlugcatStats.Name saveSlot) {
             try {
-                orig(s, m, owner, pos, container, saveSlot);
+                orig(s, menu, owner, pos, container, saveSlot);
                 s.sprites
                     .ToList()
                     .ForEach(region => region.Value
-                        .ForEach(sprite => {
-                            container.RemoveChild(sprite);
-                        })
+                        .ForEach(container.RemoveChild)
                     );
                 s.sprites.Clear();
 
-                var menu = m as SleepAndDeathScreen;
                 var rainWorld = menu.manager.rainWorld;
                 CurrentSlugcat = saveSlot;
 
@@ -192,10 +205,9 @@ namespace ImprovedCollectiblesTracker {
 
                 var regionsLeftToFind = availableRegions.Count() - s.displayRegions.Count();
 
-                RegionsLeftText = regionsLeftToFind > 0 ? new FLabel(GetFont(), $"{regionsLeftToFind} regions left to discover!") { color = new Color(0.75f, 0.75f, 0.75f) } : null;
+                RegionsLeftText = regionsLeftToFind > 0 ? new FLabel(GetFont(), $"{regionsLeftToFind} regions left to discover!") { color = new Color(0.75f, 0.75f, 0.75f), isVisible = false } : null;
                 if (RegionsLeftText != null)
                     container.AddChild(RegionsLeftText);
-
                 foreach (var region in s.displayRegions) {
                     s.sprites[region] = [];
                     rainWorld.regionGoldTokens[region]
@@ -208,7 +220,12 @@ namespace ImprovedCollectiblesTracker {
                         .Where((token, j) => rainWorld.regionBlueTokensAccessibility[region][j].Contains(saveSlot))
                         .ToList()
                         .ForEach(token => {
-                            s.sprites[region].Add(new FSprite(s.collectionData.unlockedBlues.Contains(token) ? "ctOn" : "ctOff") { color = RainWorld.AntiGold.rgb });
+                            var sprite =
+                                new FSprite(s.collectionData.unlockedBlues.Contains(token) ? "ctOn" : "ctOff") {
+                                    color = RainWorld.AntiGold.rgb
+                                };
+                            //SpriteToUnlockID.Add(sprite, token.value);
+                            s.sprites[region].Add(sprite);
                         });
 
                     if (ModManager.MSC) {
@@ -238,19 +255,30 @@ namespace ImprovedCollectiblesTracker {
                     s.sprites[region].ForEach(container.AddChild);
                 }
 
-                TooltipBoundingBox = new(menu, menu.pages[0], Vector2.zero, Vector2.one, true) {
+                s_tooltipBoundingBox = new(menu, menu.pages[0], Vector2.zero, Vector2.one, true) {
                     borderColor = new HSLColor(0f, 0f, 0.25f),
                     fillAlpha = 0f
                 };
 
-                menu.pages[0].subObjects.Add(TooltipBoundingBox);
+                menu.pages[0].subObjects.Add(s_tooltipBoundingBox);
 
-                ToolTipText = new(GetFont(), "");
-                container.AddChild(ToolTipText);
+                s_toolTipText = new(GetFont(), "");
+                container.AddChild(s_toolTipText);
 
             } catch (Exception e) {
                 Logger.LogError($"Exception in CollectiblesTracker_ctor override {e}");
             }
+        }
+        
+        private void CollectiblesTracker_RemoveSprites(On.MoreSlugcats.CollectiblesTracker.orig_RemoveSprites orig, CollectiblesTracker self) {
+            orig(self);
+            foreach (var label in RegionLabels)
+            {
+                label.RemoveFromContainer();
+            }
+            RegionsLeftText?.RemoveFromContainer();
+            RegionLabels.Clear();
+            RegionsLeftText = null;
         }
     }
 }

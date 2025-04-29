@@ -9,23 +9,23 @@
 
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\Backups\Rain World\Rain World References\BepInEx\utils\PUBLIC-Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\lib\PUBLIC-Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>..\..\Backups\Rain World\Rain World References\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>..\..\..\lib\BepInEx.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="HOOKS-Assembly-CSharp">
-      <HintPath>..\..\Backups\Rain World\Rain World References\BepInEx\plugins\HOOKS-Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\lib\HOOKS-Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>..\..\Backups\Rain World\Rain World References\RainWorld_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\lib\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
 	<Reference Include="UnityEngine.CoreModule">
-		<HintPath>..\..\Backups\Rain World\Rain World References\RainWorld_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+		<HintPath>..\..\..\lib\UnityEngine.CoreModule.dll</HintPath>
 		<Private>False</Private>
 	</Reference>
   </ItemGroup>
@@ -33,7 +33,7 @@
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.dll&quot; &quot;..\mod\plugins&quot;" />
     <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.pdb&quot; &quot;..\mod\plugins&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Rain World\RainWorld_Data\StreamingAssets\mods\ImprovedCollectiblesTracker\plugins&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.pdb&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Rain World\RainWorld_Data\StreamingAssets\mods\ImprovedCollectiblesTracker\plugins&quot;" />
+    <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.dll&quot; &quot;Z:\SteamLibrary\steamapps\common\Rain World\RainWorld_Data\StreamingAssets\mods\ImprovedCollectiblesTracker\plugins&quot;" />
+    <Exec Command="copy /Y &quot;$(TargetDir)\ImprovedCollectiblesTracker.pdb&quot; &quot;Z:\SteamLibrary\steamapps\common\Rain World\RainWorld_Data\StreamingAssets\mods\ImprovedCollectiblesTracker\plugins&quot;" />
   </Target>
 </Project>

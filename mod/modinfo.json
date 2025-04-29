@@ -1,11 +1,14 @@
 {
 	"id": "improvedcollectiblestracker",
 	"name": "ImprovedCollectiblesTracker",
-	"version": "1.0.1",
+	"version": "1.2.0",
 	"authors": "aissurtievos",
-	"description": "Overhauls the collectibles tracker that shows after each cycle.",
-	"requirements": [],
-	"requirements_names": [],
+	"description": "Overhauls the collectibles tracker that shows after each cycle.
+
+    A tool tip showing the full region name is shown when you hover over the region code.
+    Supports custom regions.",
+	"requirements": ["rwremix"],
+	"requirements_names": ["Rain World Remix"],
 	"tags" : [],
 	"checksum_override_version": false
 }
