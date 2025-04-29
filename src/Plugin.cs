@@ -4,6 +4,7 @@ using System.Security.Permissions;
 using System.Security;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using static System.Math;
 using System.Linq;
 using UnityEngine;
@@ -21,7 +22,7 @@ namespace ImprovedCollectiblesTracker {
     public class Plugin : BaseUnityPlugin {
         private new static ManualLogSource Logger { get; set; } = null!;
 
-        private const string Version = "1.2.0";
+        private const string Version = "1.3.0";
         private const string ModName = "ImprovedCollectiblesTracker";
         private const string ModID = "improvedcollectiblestracker";
         private const string Author = "aissurtievos";
@@ -130,146 +131,210 @@ namespace ImprovedCollectiblesTracker {
                     s_visibilityCounter += 1;
                 }
 
-                var fullNameRect = s_toolTipText.textRect;
-                var hPadding = 12f;
-                var vPadding = 6f;
-
-                s_tooltipBoundingBox.pos.x = Mathf.Floor(Futile.mousePosition.x - fullNameRect.width - hPadding - 13f);
-                s_tooltipBoundingBox.pos.y = Mathf.Floor(Futile.mousePosition.y - fullNameRect.height / 2);
-
-                s_tooltipBoundingBox.size.x = fullNameRect.width + hPadding;
-                s_tooltipBoundingBox.size.y = fullNameRect.height + vPadding;
-
-                var boundingBoxDrawPos = s_tooltipBoundingBox.DrawPos(timeStacker);
-
-                s_toolTipText.x = boundingBoxDrawPos.x + fullNameRect.width / 2 + 0.01f + hPadding / 2f;
-                s_toolTipText.y = boundingBoxDrawPos.y + fullNameRect.height / 2 + 0.01f + vPadding / 2f + 1f;
-
-
-                // elements should be invisible for the first 5 frames, and fade in gradually after that over 15 frames
-                // final opacity 75%
-                var elementAlpha = Max(0f, (s_visibilityCounter - 5) * 0.05f);
-
-                s_toolTipText.alpha = elementAlpha;
-                s_tooltipBoundingBox.fillAlpha = elementAlpha;
-                s_tooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.alpha = elementAlpha);
+                RenderTooltip(timeStacker, s_toolTipText.textRect, 6f, 12f);
             } catch (Exception e) { Logger.LogError($"Exception in CollectiblesTracker_GrafUpdate {e}"); }
+        }
+
+        public static void RenderTooltip(float timeStacker, Rect fullNameRect, float hPadding, float vPadding)
+        {
+            s_tooltipBoundingBox.pos.x = Mathf.Floor(Futile.mousePosition.x - fullNameRect.width - hPadding - 13f);
+            s_tooltipBoundingBox.pos.y = Mathf.Floor(Futile.mousePosition.y - fullNameRect.height / 2);
+
+            s_tooltipBoundingBox.size.x = fullNameRect.width + hPadding;
+            s_tooltipBoundingBox.size.y = fullNameRect.height + vPadding;
+
+            var boundingBoxDrawPos = s_tooltipBoundingBox.DrawPos(timeStacker);
+
+            s_toolTipText.x = boundingBoxDrawPos.x + fullNameRect.width / 2 + 0.01f + hPadding / 2f;
+            s_toolTipText.y = boundingBoxDrawPos.y + fullNameRect.height / 2 + 0.01f + vPadding / 2f + 1f;
+
+
+            // elements should be invisible for the first 5 frames, and fade in gradually after that over 15 frames
+            // final opacity 75%
+            var elementAlpha = Max(0f, (s_visibilityCounter - 5) * 0.05f);
+
+            s_toolTipText.alpha = elementAlpha;
+            s_tooltipBoundingBox.fillAlpha = elementAlpha;
+            s_tooltipBoundingBox.sprites.ToList().ForEach(sprite => sprite.alpha = elementAlpha);
         }
 
         public static List<FLabel> RegionLabels = [];
         public static FLabel? RegionsLeftText = null;
         public static SlugcatStats.Name CurrentSlugcat = new("White", register: true);
         // Replace original constructor with more efficient one, also with custom logic as well
-        private void CollectiblesTracker_ctor(On.MoreSlugcats.CollectiblesTracker.orig_ctor orig, CollectiblesTracker s, Menu.Menu menu, MenuObject owner, Vector2 pos, FContainer container, SlugcatStats.Name saveSlot) {
+        private void CollectiblesTracker_ctor(On.MoreSlugcats.CollectiblesTracker.orig_ctor orig, CollectiblesTracker tracker, Menu.Menu menu, MenuObject owner, Vector2 pos, FContainer container, SlugcatStats.Name saveSlot) {
             try {
-                orig(s, menu, owner, pos, container, saveSlot);
-                s.sprites
-                    .ToList()
-                    .ForEach(region => region.Value
-                        .ForEach(container.RemoveChild)
-                    );
-                s.sprites.Clear();
+                orig(tracker, menu, owner, pos, container, saveSlot);
+                
+                RemoveExistingMenu(tracker, container);
 
                 var rainWorld = menu.manager.rainWorld;
                 CurrentSlugcat = saveSlot;
 
-                var availableRegions = SlugcatStats
-                    .getSlugcatStoryRegions(saveSlot)
-                    .Concat(SlugcatStats
-                        .getSlugcatOptionalRegions(saveSlot))
-                    .Select(region => region.ToLowerInvariant())
-                    .ToList();
+                var availableRegions = GenerateAvailableRegions(saveSlot);
 
-                s.displayRegions = availableRegions
-                    .Where(s.collectionData.regionsVisited.Contains)
-                    .ToList();
+                tracker.displayRegions = GenerateDisplayRegions(tracker, availableRegions);
 
-                s.regionIcons = s.displayRegions
-                    .Select(region => {
-                        var color = Color.Lerp(Region.RegionColor(region.ToUpperInvariant()), Color.white, 0.25f);
-                        var sprite = region == s.collectionData.currentRegion ?
-                            new FSprite("keyShiftB") { rotation = 270f, scale = 0.5f, color = color } : // Current region
-                            new FSprite("Circle4") { color = color }; // All others
-                        container.AddChild(sprite);
-                        return sprite;
-                    })
-                    .ToArray();
+                tracker.regionIcons = GenerateRegionIcons(tracker, container);
 
-                RegionLabels = s.displayRegions
-                    .Select(region => {
-                        var regionLabel = new FLabel(GetFont(), region.ToUpperInvariant()) { alignment = FLabelAlignment.Left };
-                        container.AddChild(regionLabel);
-                        return regionLabel;
-                    })
-                    .ToList();
+                RegionLabels = GenerateRegionLabels(tracker, container);
 
-                var regionsLeftToFind = availableRegions.Count() - s.displayRegions.Count();
+                var regionsLeftToFind = RegionsLeftToFind(tracker, availableRegions);
 
-                RegionsLeftText = regionsLeftToFind > 0 ? new FLabel(GetFont(), $"{regionsLeftToFind} regions left to discover!") { color = new Color(0.75f, 0.75f, 0.75f), isVisible = false } : null;
+                RegionsLeftText = GenerateRegionsLeftText(regionsLeftToFind);
+                
                 if (RegionsLeftText != null)
                     container.AddChild(RegionsLeftText);
-                foreach (var region in s.displayRegions) {
-                    s.sprites[region] = [];
-                    rainWorld.regionGoldTokens[region]
-                        .Where((token, j) => rainWorld.regionGoldTokensAccessibility[region][j].Contains(saveSlot))
-                        .ToList()
-                        .ForEach(token => {
-                            s.sprites[region].Add(new FSprite(s.collectionData.unlockedGolds.Contains(token) ? "ctOn" : "ctOff") { color = new Color(1f, 0.6f, 0.05f) });
-                        });
-                    rainWorld.regionBlueTokens[region]
-                        .Where((token, j) => rainWorld.regionBlueTokensAccessibility[region][j].Contains(saveSlot))
-                        .ToList()
-                        .ForEach(token => {
-                            var sprite =
-                                new FSprite(s.collectionData.unlockedBlues.Contains(token) ? "ctOn" : "ctOff") {
-                                    color = RainWorld.AntiGold.rgb
-                                };
-                            //SpriteToUnlockID.Add(sprite, token.value);
-                            s.sprites[region].Add(sprite);
-                        });
-
-                    if (ModManager.MSC) {
-                        rainWorld.regionGreenTokens[region]
-                            .Where((token, j) => rainWorld.regionGreenTokensAccessibility[region][j].Contains(saveSlot))
-                            .ToList()
-                            .ForEach(token => {
-                                s.sprites[region].Add(new FSprite(s.collectionData.unlockedGreens.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.GreenColor.rgb });
-                            });
-                        if (saveSlot == MoreSlugcatsEnums.SlugcatStatsName.Spear) {
-                            rainWorld.regionGreyTokens[region]
-                                .ForEach(token => {
-                                    s.sprites[region].Add(new FSprite(s.collectionData.unlockedGreys.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.WhiteColor.rgb });
-                                });
-                        }
-                        rainWorld.regionRedTokens[region]
-                            .Where((token, j) => rainWorld.regionRedTokensAccessibility[region][j].Contains(saveSlot))
-                            .ToList()
-                            .ForEach(token => {
-                                s.sprites[region].Add(new FSprite(s.collectionData.unlockedReds.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.RedColor.rgb });
-                            });
-                    }
-
-                    if (!s.sprites[region].Any()) {
-                        s.sprites[region].Add(new FSprite("ctNone") { color = CollectToken.WhiteColor.rgb });
-                    }
-                    s.sprites[region].ForEach(container.AddChild);
+                
+                foreach (var region in tracker.displayRegions) {
+                    GenerateRegionTokens(tracker, container, saveSlot, region, rainWorld);
                 }
 
-                s_tooltipBoundingBox = new(menu, menu.pages[0], Vector2.zero, Vector2.one, true) {
-                    borderColor = new HSLColor(0f, 0f, 0.25f),
-                    fillAlpha = 0f
-                };
-
-                menu.pages[0].subObjects.Add(s_tooltipBoundingBox);
-
-                s_toolTipText = new(GetFont(), "");
-                container.AddChild(s_toolTipText);
-
+                HandleTooltip(menu, container);
+                
             } catch (Exception e) {
                 Logger.LogError($"Exception in CollectiblesTracker_ctor override {e}");
             }
         }
-        
+
+        public static void GenerateRegionTokens(CollectiblesTracker tracker, FContainer container, SlugcatStats.Name saveSlot, string region, RainWorld rainWorld) {
+            tracker.sprites[region] = [];
+                        
+            PopulateGoldTokens(tracker, saveSlot, rainWorld, region);
+            PopulateBlueTokens(tracker, saveSlot, rainWorld, region);
+
+            if (ModManager.MSC) {
+                PopulateGreenTokens(tracker, saveSlot, rainWorld, region);
+                PopulateGreyTokens(tracker, saveSlot, rainWorld, region);
+                PopulateRedTokens(tracker, saveSlot, rainWorld, region);
+            }
+
+            if (!tracker.sprites[region].Any()) {
+                tracker.sprites[region].Add(new FSprite("ctNone") { color = CollectToken.WhiteColor.rgb });
+            }
+            tracker.sprites[region].ForEach(container.AddChild);
+        }
+
+        public static void RemoveExistingMenu(CollectiblesTracker tracker, FContainer container) {
+            tracker.sprites
+                .ToList()
+                .ForEach(region => region.Value
+                    .ForEach(container.RemoveChild)
+                );
+            tracker.sprites.Clear();
+        }
+
+        public static List<string> GenerateAvailableRegions(SlugcatStats.Name saveSlot) {
+            var regions = SlugcatStats
+                .SlugcatStoryRegions(saveSlot)
+                .Concat(SlugcatStats.SlugcatOptionalRegions(saveSlot))
+                .Select(region => region.ToLowerInvariant())
+                .ToList();
+            return regions;
+        }
+
+        public static void HandleTooltip(Menu.Menu menu, FContainer container) {
+            s_tooltipBoundingBox = new(menu, menu.pages[0], Vector2.zero, Vector2.one, true) {
+                borderColor = new HSLColor(0f, 0f, 0.25f),
+                fillAlpha = 0f
+            };
+
+            menu.pages[0].subObjects.Add(s_tooltipBoundingBox);
+
+            s_toolTipText = new(GetFont(), "");
+            container.AddChild(s_toolTipText);
+        }
+
+        public static void PopulateRedTokens(CollectiblesTracker tracker, SlugcatStats.Name saveSlot, RainWorld rainWorld, string region) {
+            rainWorld.regionRedTokens[region]
+                .Where((token, j) => rainWorld.regionRedTokensAccessibility[region][j].Contains(saveSlot))
+                .ToList()
+                .ForEach(token => {
+                    tracker.sprites[region].Add(new FSprite(tracker.collectionData.unlockedReds.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.RedColor.rgb });
+                });
+        }
+
+        public static void PopulateGreyTokens(CollectiblesTracker tracker, SlugcatStats.Name saveSlot, RainWorld rainWorld, string region) {
+            if (saveSlot == MoreSlugcatsEnums.SlugcatStatsName.Spear) {
+                rainWorld.regionGreyTokens[region]
+                    .ForEach(token => {
+                        tracker.sprites[region].Add(new FSprite(tracker.collectionData.unlockedGreys.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.WhiteColor.rgb });
+                    });
+            }
+        }
+
+        public static void PopulateGreenTokens(CollectiblesTracker tracker, SlugcatStats.Name saveSlot, RainWorld rainWorld, string region) {
+            rainWorld.regionGreenTokens[region]
+                .Where((token, j) => rainWorld.regionGreenTokensAccessibility[region][j].Contains(saveSlot))
+                .ToList()
+                .ForEach(token => {
+                    tracker.sprites[region].Add(new FSprite(tracker.collectionData.unlockedGreens.Contains(token) ? "ctOn" : "ctOff") { color = CollectToken.GreenColor.rgb });
+                });
+        }
+
+        public static void PopulateBlueTokens(CollectiblesTracker tracker, SlugcatStats.Name saveSlot, RainWorld rainWorld, string region) {
+            rainWorld.regionBlueTokens[region]
+                .Where((token, j) => rainWorld.regionBlueTokensAccessibility[region][j].Contains(saveSlot))
+                .ToList()
+                .ForEach(token => {
+                    var sprite =
+                        new FSprite(tracker.collectionData.unlockedBlues.Contains(token) ? "ctOn" : "ctOff") {
+                            color = RainWorld.AntiGold.rgb
+                        };
+                    //SpriteToUnlockID.Add(sprite, token.value);
+                    tracker.sprites[region].Add(sprite);
+                });
+        }
+
+        public static void PopulateGoldTokens(CollectiblesTracker tracker, SlugcatStats.Name saveSlot, RainWorld rainWorld, string region) {
+            rainWorld.regionGoldTokens[region]
+                .Where((token, j) => rainWorld.regionGoldTokensAccessibility[region][j].Contains(saveSlot))
+                .ToList()
+                .ForEach(token => {
+                    tracker.sprites[region].Add(new FSprite(tracker.collectionData.unlockedGolds.Contains(token) ? "ctOn" : "ctOff") { color = new Color(1f, 0.6f, 0.05f) });
+                });
+        }
+
+        public static FLabel? GenerateRegionsLeftText(int regionsLeftToFind) {
+            return regionsLeftToFind > 0 ? new FLabel(GetFont(), $"{regionsLeftToFind} regions left to discover!") { color = new Color(0.75f, 0.75f, 0.75f), isVisible = false } : null;
+        }
+
+        public static int RegionsLeftToFind(CollectiblesTracker tracker, List<string> availableRegions) {
+            return availableRegions.Count() - tracker.displayRegions.Count();
+        }
+
+        public static List<FLabel> GenerateRegionLabels(CollectiblesTracker tracker, FContainer container) {
+            var labels = tracker.displayRegions
+                .Select(region => {
+                    var regionLabel = new FLabel(GetFont(), region.ToUpperInvariant()) { alignment = FLabelAlignment.Left };
+                    container.AddChild(regionLabel);
+                    return regionLabel;
+                })
+                .ToList();
+            return labels;
+        }
+
+        public static FSprite[] GenerateRegionIcons(CollectiblesTracker tracker, FContainer container) {
+            var icons = tracker.displayRegions
+                .Select(region => {
+                    var color = Color.Lerp(Region.RegionColor(region.ToUpperInvariant()), Color.white, 0.25f);
+                    var sprite = region == tracker.collectionData.currentRegion ?
+                        new FSprite("keyShiftB") { rotation = 270f, scale = 0.5f, color = color } : // Current region
+                        new FSprite("Circle4") { color = color }; // All others
+                    container.AddChild(sprite);
+                    return sprite;
+                })
+                .ToArray();
+            return icons;
+        }
+
+        public static List<string> GenerateDisplayRegions(CollectiblesTracker tracker, List<string> availableRegions) {
+            var regions = availableRegions
+                .Where(tracker.collectionData.regionsVisited.Contains)
+                .ToList();
+            return regions;
+        }
+
         private void CollectiblesTracker_RemoveSprites(On.MoreSlugcats.CollectiblesTracker.orig_RemoveSprites orig, CollectiblesTracker self) {
             orig(self);
             foreach (var label in RegionLabels)
